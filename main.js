@@ -13,6 +13,7 @@ let objEyes = {
     eyes: 100, range: [1, 100]
 }
 let ui;
+let texture, texture2, camera, surface2;
 
 function deg2rad(angle) {
     return angle * Math.PI / 180;
@@ -34,7 +35,7 @@ function StereoCamera(
     this.mNearClippingDistance = NearClippingDistance;
     this.mFarClippingDistance = FarClippingDistance;
 
-    this.ApplyLeftFrustum = function () {
+    this.ApplyLeftFrustum = function() {
         let top, bottom, left, right;
 
         top = this.mNearClippingDistance * Math.tan(this.mFOV / 2);
@@ -54,7 +55,7 @@ function StereoCamera(
         return { p: projectionMatrix, m: modelViewMatrix }
     }
 
-    this.ApplyRightFrustum = function () {
+    this.ApplyRightFrustum = function() {
         let top, bottom, left, right;
 
         top = this.mNearClippingDistance * Math.tan(this.mFOV / 2);
@@ -83,7 +84,7 @@ function Model(name) {
     this.iVertexBuffer2 = gl.createBuffer();
     this.count = 0;
 
-    this.BufferData = function (vertices) {
+    this.BufferData = function(vertices) {
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STREAM_DRAW);
@@ -91,14 +92,14 @@ function Model(name) {
         this.count = vertices.length / 3;
     }
 
-    this.BufferData2 = function (vertices) {
+    this.BufferData2 = function(vertices) {
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer2);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STREAM_DRAW);
 
     }
 
-    this.Draw = function () {
+    this.Draw = function() {
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
         gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
@@ -125,7 +126,7 @@ function ShaderProgram(name, program) {
     // Location of the uniform matrix representing the combined transformation.
     this.iModelViewProjectionMatrix = -1;
 
-    this.Use = function () {
+    this.Use = function() {
         gl.useProgram(this.prog);
     }
 }
@@ -138,6 +139,20 @@ function ShaderProgram(name, program) {
 function draw() {
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    // gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, m4.identity());
+    // gl.bindTexture(gl.TEXTURE_2D, texture2);
+    // gl.texImage2D(
+    //     gl.TEXTURE_2D,
+    //     0,
+    //     gl.RGBA,
+    //     gl.RGBA,
+    //     gl.UNSIGNED_BYTE,
+    //     camera
+    // );
+    // surface2.Draw();
+    // gl.clear(gl.DEPTH_BUFFER_BIT);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
 
     /* Get the view matrix from the SimpleRotator object.*/
     let modelView = spaceball.getViewMatrix();
@@ -153,6 +168,10 @@ function draw() {
     let modelViewProjection;
     let matrices = stereoCamera.ApplyLeftFrustum();
     modelViewProjection = m4.multiply(matrices.p, m4.multiply(matrices.m, matAccum1));
+    if (magAccessed) {
+        // modelViewProjection = m4.multiply(matrices.p, m4.multiply(matrices.m, m4.multiply(matAccum1, m4.zRotation(deg2rad(heading)))));
+        modelViewProjection = m4.multiply(matrices.p, m4.multiply(matrices.m, m4.multiply(matAccum1, rotationMatrix)));
+    }
     gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, modelViewProjection);
     gl.colorMask(true, false, false, false);
 
@@ -162,6 +181,10 @@ function draw() {
     [matrices.p,
     matrices.m] = stereoCamera.ApplyRightFrustum();
     modelViewProjection = m4.multiply(matrices.p, m4.multiply(matrices.m, matAccum1));
+    if (magAccessed) {
+        // modelViewProjection = m4.multiply(matrices.p, m4.multiply(matrices.m, m4.multiply(matAccum1, m4.zRotation(deg2rad(heading)))));
+        modelViewProjection = m4.multiply(matrices.p, m4.multiply(matrices.m, m4.multiply(matAccum1, rotationMatrix)));
+    }
     gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, modelViewProjection);
     gl.colorMask(false, true, true, false);
 
@@ -225,7 +248,7 @@ function map(value, a, b, c, d) {
 }
 
 function LoadTexture() {
-    let texture = gl.createTexture();
+    texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -267,7 +290,7 @@ function initGL() {
     // panel = controlKit.addPanel()
     ui = new UIL.Gui({ w: 300 })
 
-
+    texture2 = CreateTexture();
     stereoCamera = new StereoCamera(270, 100, 1, 1.6, 1, 10);
     ui.add(stereoCamera, 'mConvergence', { type: 'slide', min: 60, max: 270, step: 10 }).onChange(draw)
     ui.add(stereoCamera, 'mEyeSeparation', { type: 'slide', min: 0, max: 100, step: 1 }).onChange(draw)
@@ -291,11 +314,19 @@ function initGL() {
     // })
 
     surface = new Model('Surface');
+    surface2 = new Model('Surface2');
     surface.BufferData(CreateSurfaceData());
+    surface2.BufferData([-1, -1, 0, 1, 1, 0, 1, -1, 0, 1, 1, 0, -1, -1, 0, -1, 1, 0]);
     surface.BufferData2(CreateSurfaceData2());
+    surface2.BufferData2([1, 1, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0]);
 
 
     gl.enable(gl.DEPTH_TEST);
+}
+
+function draw2() {
+    draw()
+    window.requestAnimationFrame(draw2)
 }
 
 
@@ -335,6 +366,7 @@ function createProgram(gl, vShader, fShader) {
  * initialization function that will be called when the page has loaded
  */
 function init() {
+    // camera = startCamera();
     let canvas;
     try {
         canvas = document.getElementById("webglcanvas");
@@ -359,5 +391,53 @@ function init() {
 
     spaceball = new TrackballRotator(canvas, draw, 0);
 
-    draw();
+    draw2();
+}
+
+function CreateTexture() {
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return texture;
+}
+
+function startCamera() {
+    const video = document.createElement('video');
+    video.setAttribute('autoplay', true);
+    window.vid = video;
+    navigator.getUserMedia({ video: true, audio: false }, function(stream) {
+        video.srcObject = stream;
+        track = stream.getTracks()[0];
+    }, function(e) {
+        console.error('Rejected!', e);
+    });
+    return video;
+}
+let magAccessed = false;
+let heading = 0;
+let rotationMatrix = m4.identity();
+function accessMagnetometer() {
+    const message = document.getElementById("message");
+    message.innerText = 'Accessing magnetometer...';
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+            .then(response => {
+                console.log(response);
+                if (response === 'granted') {
+                    console.log('Permission granted');
+                    window.addEventListener('deviceorientation', e => {
+                        message.innerText = e.webkitCompassHeading
+                        heading = e.webkitCompassHeading
+                        rotationMatrix = m4.multiply(m4.xRotation(deg2rad(e.gamma)), m4.multiply(m4.yRotation(deg2rad(e.beta)), m4.zRotation(deg2rad(e.alpha))))
+                    }, true);
+                    magAccessed = true;
+                }
+            }).catch((err => {
+                console.log('Err', err);
+            }));
+    }
 }
