@@ -13,6 +13,7 @@ let objEyes = {
     eyes: 100, range: [1, 100]
 }
 let ui;
+let texture, texture2, camera, surface2;
 
 function deg2rad(angle) {
     return angle * Math.PI / 180;
@@ -139,6 +140,20 @@ function draw() {
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+    gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, m4.identity());
+    gl.bindTexture(gl.TEXTURE_2D, texture2);
+    gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        camera
+    );
+    surface2.Draw();
+    gl.clear(gl.DEPTH_BUFFER_BIT);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+
     /* Get the view matrix from the SimpleRotator object.*/
     let modelView = spaceball.getViewMatrix();
 
@@ -225,7 +240,7 @@ function map(value, a, b, c, d) {
 }
 
 function LoadTexture() {
-    let texture = gl.createTexture();
+    texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -267,7 +282,7 @@ function initGL() {
     // panel = controlKit.addPanel()
     ui = new UIL.Gui({ w: 300 })
 
-
+    texture2 = CreateTexture();
     stereoCamera = new StereoCamera(270, 100, 1, 1.6, 1, 10);
     ui.add(stereoCamera, 'mConvergence', { type: 'slide', min: 60, max: 270, step: 10 }).onChange(draw)
     ui.add(stereoCamera, 'mEyeSeparation', { type: 'slide', min: 0, max: 100, step: 1 }).onChange(draw)
@@ -291,11 +306,19 @@ function initGL() {
     // })
 
     surface = new Model('Surface');
+    surface2 = new Model('Surface2');
     surface.BufferData(CreateSurfaceData());
+    surface2.BufferData([-1, -1, 0, 1, 1, 0, 1, -1, 0, 1, 1, 0, -1, -1, 0, -1, 1, 0]);
     surface.BufferData2(CreateSurfaceData2());
+    surface2.BufferData2([1, 1, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0]);
 
 
     gl.enable(gl.DEPTH_TEST);
+}
+
+function draw2(){
+    draw()
+    window.requestAnimationFrame(draw2)
 }
 
 
@@ -335,6 +358,7 @@ function createProgram(gl, vShader, fShader) {
  * initialization function that will be called when the page has loaded
  */
 function init() {
+    camera = startCamera();
     let canvas;
     try {
         canvas = document.getElementById("webglcanvas");
@@ -359,5 +383,28 @@ function init() {
 
     spaceball = new TrackballRotator(canvas, draw, 0);
 
-    draw();
+    draw2();
+}
+
+function CreateTexture() {
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return texture;
+}
+
+function startCamera() {
+    const video = document.createElement('video');
+    video.setAttribute('autoplay', true);
+    window.vid = video;
+    navigator.getUserMedia({ video: true, audio: false }, function (stream) {
+        video.srcObject = stream;
+        track = stream.getTracks()[0];
+    }, function (e) {
+        console.error('Rejected!', e);
+    });
+    return video;
 }

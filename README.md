@@ -1,2 +1,2 @@
-!(portret.jpeg)
-!(PA1.gif)
+![Portret](photo.jpg)
+![present](PA2.gif)
